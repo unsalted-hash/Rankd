@@ -3,13 +3,12 @@ using System.Text;
 
 namespace Rankd
 {
-
-    public partial class Form1 : Form
+    public partial class MainForm : Form
     {
         private int totalUsers = 0;
         private int totalUsersSearched = 0;
 
-        public Form1()
+        public MainForm()
         {
             InitializeComponent();
         }
@@ -83,12 +82,14 @@ namespace Rankd
         {
             if (block)
             {
+                exportButton.Enabled = false;
                 resultsGridView.Enabled = false;
                 searchButton.Enabled = false;
                 searchButton.Text = "Searching...";
             }
             else
             {
+                exportButton.Enabled = true;
                 resultsGridView.Enabled = true;
                 searchButton.Enabled = true;
                 searchButton.Text = "Search";
@@ -103,6 +104,34 @@ namespace Rankd
             };
 
             fileDialog.ShowDialog();
+        }
+
+        private void ExportButton_Click(object sender, EventArgs e)
+        {
+            Enabled = false;
+
+            var builder = new StringBuilder();
+            var rowData = new List<string>();
+            foreach (DataGridViewRow row in resultsGridView.Rows)
+            {
+                for (var i = 1; i < row.Cells.Count; i++)
+                {
+                    var cell = row.Cells[i];
+                    var cellText = cell.Value?.ToString() ?? string.Empty;
+                    rowData.Add(cellText);
+                }
+
+                builder.AppendLine(string.Join(',', rowData));
+                rowData.Clear();
+            }
+
+            var fileName = $"{DateTime.Now:yyyy-MM-dd}.csv";
+            var savePath = Path.GetFullPath(fileName);
+
+            File.WriteAllText(savePath, builder.ToString());
+            MessageBox.Show($"Results exported to \"{savePath}\".");
+
+            Enabled = true;
         }
     }
 }
