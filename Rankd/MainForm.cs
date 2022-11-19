@@ -8,12 +8,6 @@ namespace Rankd
     /// </summary>
     public partial class MainForm : Form
     {
-        // number of users to search for during a given iteration
-        private int totalUsers = 0;
-
-        // number of users found during a given iteration
-        private int totalUsersSearched = 0;
-
         /// <summary>
         /// Creates in instance of the main Rankd form
         /// </summary>
@@ -28,7 +22,7 @@ namespace Rankd
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void UserSearchButton_Click(object sender, EventArgs e)
+        private void SearchButton_Click(object sender, EventArgs e)
         {
             // clear results and reset column sorts
             resultsGridView.Rows.Clear();
@@ -38,9 +32,27 @@ namespace Rankd
                 column.SortMode = DataGridViewColumnSortMode.Automatic;
             }
 
-            // search for stats, and prevent UI interactions while doing so
-            BlockSearchInteractions(true);
-            RetrieveStats();
+            // disable UI while searching
+            contentPanel.Enabled = false;
+
+            // gather names from textbox
+            var usernames = GetUsernames();
+
+            // begin task to retrieve stats
+            Task.Run(() =>
+            {
+                var searchResults = RetrieveStatsAsync(usernames).Result;
+
+                Invoke(() =>
+                {
+                    foreach (var result in searchResults)
+                    {
+                        AddResult(result.Key, result.Value);
+                    }
+
+                    contentPanel.Enabled = true;
+                });
+            });
         }
 
         /// <summary>
@@ -50,8 +62,8 @@ namespace Rankd
         /// <param name="e"></param>
         private void ExportButton_Click(object sender, EventArgs e)
         {
-            // disable entire form while exporting
-            Enabled = false;
+            // disable UI while exporting
+            contentPanel.Enabled = false;
 
             // create string builder to construct csv file
             var builder = new StringBuilder();
@@ -80,38 +92,16 @@ namespace Rankd
             File.WriteAllText(savePath, builder.ToString());
             MessageBox.Show($"Results exported to \"{savePath}\".");
 
-            // re-enable the form
-            Enabled = true;
+            // re-enable UI
+            contentPanel.Enabled = true;
         }
         #endregion
-
-        /// <summary>
-        /// Enables/disables UI elements related to searching
-        /// </summary>
-        /// <param name="block">Determines if UI elements should be enabled or disabled</param>
-        private void BlockSearchInteractions(bool block)
-        {
-            if (block)
-            {
-                exportButton.Enabled = false;
-                resultsGridView.Enabled = false;
-                searchButton.Enabled = false;
-                searchButton.Text = "Searching...";
-            }
-            else
-            {
-                exportButton.Enabled = true;
-                resultsGridView.Enabled = true;
-                searchButton.Enabled = true;
-                searchButton.Text = "Search";
-            }
-        }
 
         /// <summary>
         /// Parses information in the users textbox to get an enumerable of usernames
         /// </summary>
         /// <returns>Enumerable of usernames from the users textbox</returns>
-        private IEnumerable<string> GatherUsers()
+        private IEnumerable<string> GetUsernames()
         {
             // return trimmed, non-null strings from the users textbox
             return usersTextBox.Text.Split(",")
@@ -119,21 +109,11 @@ namespace Rankd
                 .Select(x => x.Trim());
         }
 
-        /// <summary>
-        /// Handles the completion of stat retrieval
-        /// </summary>
-        private void OnAllStatsRetrieved()
-        {
-            // unblock UI
-            BlockSearchInteractions(false);
-        }
-
-        /// <summary>
         /// Handles the retrieval of a user's stats
         /// </summary>
         /// <param name="user">User</param>
         /// <param name="result">User's stats</param>
-        private void OnStatsRetrieved(string user, HiscoresSearchResult result)
+        private void AddResult(string user, HiscoresSearchResult result)
         {
             // determine icon from iron type
             var ironIcon = result.IronType switch
@@ -154,34 +134,28 @@ namespace Rankd
         /// <summary>
         /// Retrieves the current stat of each user in the users textbox from the OSRS Hiscores
         /// </summary>
-        private void RetrieveStats()
+        private static async Task<Dictionary<string, HiscoresSearchResult>> RetrieveStatsAsync(IEnumerable<string> usernames)
         {
-            // gather users from textbox
-            var users = GatherUsers();
-
-            // reset counts
-            totalUsers = users.Count();
-            totalUsersSearched = 0;
+            // create dictionary to map each username to its corresponding search result
+            var usersToSearch = usernames.Count();
+            var searchResults = new Dictionary<string, HiscoresSearchResult>(usersToSearch);
 
             // asynchronously get the current stats of each user
-            foreach (var user in users)
+            var tasks = new List<Task>();
+            foreach (var username in usernames)
             {
-                Task.Run(() =>
-                {
-                    HiscoresScraper.GetCurrentStatsAsync(user).ContinueWith((t) =>
-                    {
-                        // add the results to the gridview
-                        resultsGridView.Invoke(() => OnStatsRetrieved(user, t.Result));
+                // begin asyc task to get user stats, and store results when completed
+                var task = HiscoresScraper.GetCurrentStatsAsync(username)
+                    .ContinueWith((t) => searchResults[username] = t.Result);
 
-                        // check to see if a result has been found for all users
-                        totalUsersSearched++;
-                        if (totalUsersSearched == totalUsers)
-                        {
-                            resultsGridView.Invoke(() => OnAllStatsRetrieved());
-                        }
-                    });
-                });
+                tasks.Add(task);
             }
+
+            // wait for all hiscores searches to complete
+            await Task.WhenAll(tasks);
+
+            // return hiscores search results
+            return searchResults;
         }
     }
 }
