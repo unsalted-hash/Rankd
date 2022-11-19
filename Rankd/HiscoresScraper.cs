@@ -47,6 +47,30 @@ namespace Rankd
         }
 
         /// <summary>
+        /// Retrieves the current stats of a given collection of usernames
+        /// </summary>
+        public static async Task<Dictionary<string, HiscoresSearchResult>> GetCurrentStatsAsync(IEnumerable<string> usernames)
+        {
+            // create dictionary to map each username to its corresponding search result
+            var usersToSearch = usernames.Count();
+            var searchTasks = new Dictionary<string, Task<HiscoresSearchResult>>(usersToSearch);
+
+            // asynchronously get the current stats of each user
+            foreach (var username in usernames)
+            {
+                // begin asyc task to get user stats, and store results when completed
+                var task = GetCurrentStatsAsync(username);
+                searchTasks[username] = task;
+            }
+
+            // wait for all hiscores searches to complete
+            await Task.WhenAll(searchTasks.Values);
+
+            // return hiscores search results
+            return searchTasks.ToDictionary(x => x.Key, x => x.Value.Result);
+        }
+
+        /// <summary>
         /// Creates a string that is a link to the OSRS Hiscores for a given player and ironman type
         /// </summary>
         /// <param name="username">User to search</param>
