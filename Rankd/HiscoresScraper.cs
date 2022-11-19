@@ -51,14 +51,14 @@ namespace Rankd
         /// </summary>
         public static async Task<Dictionary<string, HiscoresSearchResult>> GetCurrentStatsAsync(IEnumerable<string> usernames)
         {
-            // create dictionary to map each username to its corresponding search result
+            // create dictionary to map each username to its corresponding search task
             var usersToSearch = usernames.Count();
             var searchTasks = new Dictionary<string, Task<HiscoresSearchResult>>(usersToSearch);
 
             // asynchronously get the current stats of each user
             foreach (var username in usernames)
             {
-                // begin asyc task to get user stats, and store results when completed
+                // begin asyc task to get user stats
                 var task = GetCurrentStatsAsync(username);
                 searchTasks[username] = task;
             }

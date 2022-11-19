@@ -16,7 +16,8 @@ namespace Rankd
             InitializeComponent();
         }
 
-        /// Handles the retrieval of a user's stats
+        /// <summary>
+        /// Adds an entry to the <see cref="resultsGridView"/>
         /// </summary>
         /// <param name="user">User</param>
         /// <param name="result">User's stats</param>
